@@ -1,0 +1,6 @@
+{
+  "name": "AURA DAW - Mobile Audio Workstation",
+  "description": "Professional Android Digital Audio Workstation featuring multi-track arrangement, touch piano roll, drum sequencer, sampler, real-time DSP effects, audio recording, mixer, and native NDK/Oboe architecture.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
