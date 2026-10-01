@@ -1,6 +1,6 @@
 {
-  "name": "AURA DAW - Mobile Audio Workstation",
-  "description": "Professional Android Digital Audio Workstation featuring multi-track arrangement, touch piano roll, drum sequencer, sampler, real-time DSP effects, audio recording, mixer, and native NDK/Oboe architecture.",
+  "name": "DEMONIC OS — FME Mobile Studio",
+  "description": "DEMONIC OS by FlyMaccin Ent: an Android-first mobile music workstation with PocketBand-style touch workflow, loop creation, drum sequencing, piano roll, sampler, recording, mixing, effects, export, and Bluetooth MIDI controller support.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
