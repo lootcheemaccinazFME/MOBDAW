@@ -15,10 +15,6 @@ android {
     }
 }
 
-dependencies {
-    implementation("androidx.webkit:webkit:1.14.0")
-}
-
 val webRoot = rootProject.projectDir.parentFile
 val webDist = webRoot.resolve("dist")
 val webAssets = layout.buildDirectory.dir("generated/webAssets")
