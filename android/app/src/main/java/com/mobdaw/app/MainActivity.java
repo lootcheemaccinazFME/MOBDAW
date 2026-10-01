@@ -46,7 +46,12 @@ public final class MainActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                runOnUiThread(() -> grantAudioCapturePermission(request));
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        grantAudioCapturePermission(request);
+                    }
+                });
             }
         });
         setContentView(webView);
