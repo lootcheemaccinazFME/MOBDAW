@@ -1,0 +1,40 @@
+name: Build MOBDAW APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build web app
+        run: npm install && npm run build
+      - name: Package Android APK
+        run: |
+          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init MOBDAW com.flymaccin.mobdaw --web-dir dist
+          npx cap add android
+          npx cap sync android
+          cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MOBDAW-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "apk-${{ github.run_number }}" android/app/build/outputs/apk/debug/app-debug.apk --title "MOBDAW APK ${{ github.run_number }}" --notes "Automated Android APK build."
