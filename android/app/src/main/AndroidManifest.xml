@@ -4,7 +4,7 @@
     <application
         android:allowBackup="false"
         android:label="MOBDAW"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
