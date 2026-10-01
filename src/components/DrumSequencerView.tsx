@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Grid3X3,
   Volume2,
@@ -9,6 +9,8 @@ import {
   Zap,
   Play,
   RotateCcw,
+  Bluetooth,
+  Circle,
 } from 'lucide-react';
 import { Project, DrumPattern, DrumLane, DrumStep } from '../types/daw';
 import { AudioEngine } from '../audio/AudioEngine';
@@ -30,6 +32,65 @@ export const DrumSequencerView: React.FC<DrumSequencerViewProps> = ({
   const [activeStepIndex, setActiveStepIndex] = useState<number | null>(null);
   const [selectedLaneId, setSelectedLaneId] = useState<string>(pattern?.lanes[0]?.id || '');
   const [velocityEditStep, setVelocityEditStep] = useState<{ laneId: string; stepIdx: number } | null>(null);
+  const [midiEnabled, setMidiEnabled] = useState(false);
+  const [midiRecording, setMidiRecording] = useState(false);
+  const [midiStatus, setMidiStatus] = useState('Controller not connected');
+  const [midiDeviceName, setMidiDeviceName] = useState('');
+
+  const recordMidiHit = useCallback((note: number, velocity: number) => {
+    if (!pattern || !midiRecording) return;
+    const lane = pattern.lanes[note % pattern.lanes.length];
+    const stepIdx = Math.floor((currentBeat * 4) % pattern.stepCount);
+    onUpdateProject((prev) => {
+      const drumPatterns = prev.drumPatterns.map((p) => p.id !== pattern.id ? p : {
+        ...p,
+        lanes: p.lanes.map((l) => l.id !== lane.id ? l : {
+          ...l,
+          steps: l.steps.map((step, index) => index === stepIdx ? { ...step, active: true, velocity: Math.max(1, Math.min(127, velocity)) } : step),
+        }),
+      });
+      const updated = { ...prev, drumPatterns };
+      engine.setProject(updated);
+      return updated;
+    });
+  }, [currentBeat, engine, midiRecording, onUpdateProject, pattern]);
+
+  useEffect(() => {
+    if (!midiEnabled || !pattern) return;
+    let access: any;
+    const handleMessage = (event: any) => {
+      const [status, note, velocity = 0] = event.data || [];
+      if ((status & 0xf0) === 0x90 && velocity > 0) {
+        const lane = pattern.lanes[note % pattern.lanes.length];
+        if (lane) engine.previewDrumSample(lane.sampleId, Math.max(0.15, velocity / 127));
+        recordMidiHit(note, velocity);
+      }
+    };
+    const attach = (input: any) => { input.onmidimessage = handleMessage; };
+    const start = async () => {
+      try {
+        if (navigator.requestMIDIAccess) {
+          access = await navigator.requestMIDIAccess();
+          const inputs = Array.from(access.inputs.values()) as any[];
+          inputs.forEach(attach);
+          access.onstatechange = () => {
+            const connected = Array.from(access.inputs.values()) as any[];
+            connected.forEach(attach);
+            setMidiDeviceName(connected.map((input) => input.name || 'MIDI device').join(', '));
+            setMidiStatus(connected.length ? 'MIDI controller ready' : 'Pair a Bluetooth MIDI controller in Android settings');
+          };
+          setMidiDeviceName(inputs.map((input) => input.name || 'MIDI device').join(', '));
+          setMidiStatus(inputs.length ? 'MIDI controller ready' : 'Pair a Bluetooth MIDI controller in Android settings');
+          return;
+        }
+        setMidiStatus('Android MIDI bridge will activate after Bluetooth pairing');
+      } catch {
+        setMidiStatus('MIDI permission was not granted');
+      }
+    };
+    start();
+    return () => { if (access) access.inputs.forEach((input: any) => { input.onmidimessage = null; }); };
+  }, [engine, midiEnabled, pattern, recordMidiHit]);
 
   if (!pattern) {
     return <div className="p-4 text-neutral-400">No drum pattern loaded.</div>;
@@ -192,6 +253,26 @@ export const DrumSequencerView: React.FC<DrumSequencerViewProps> = ({
     <div className="flex-1 flex flex-col bg-neutral-950 select-none overflow-hidden text-neutral-200">
       {/* Top Sequencer Controls Header */}
       <div className="h-12 bg-neutral-900 border-b border-neutral-800 px-3 flex items-center justify-between gap-2 shrink-0 overflow-x-auto no-scrollbar">
+        {/* Bluetooth / MIDI controller */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => setMidiEnabled((enabled) => !enabled)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded border text-xs font-semibold transition ${midiEnabled ? 'bg-cyan-950 text-cyan-300 border-cyan-700' : 'bg-neutral-950 text-neutral-400 border-neutral-800 hover:text-cyan-300'}`}
+            title="Connect Bluetooth MIDI pads, keys, or controllers"
+          >
+            <Bluetooth className="w-3.5 h-3.5" /> {midiEnabled ? 'MIDI On' : 'Connect MIDI'}
+          </button>
+          <button
+            onClick={() => setMidiRecording((recording) => !recording)}
+            disabled={!midiEnabled}
+            className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-semibold transition disabled:opacity-40 ${midiRecording ? 'bg-rose-600 text-white border-rose-400' : 'bg-neutral-950 text-neutral-400 border-neutral-800'}`}
+            title="Write incoming pad hits into the current loop"
+          >
+            <Circle className="w-2.5 h-2.5 fill-current" /> MIDI Rec
+          </button>
+          <span className="hidden xl:inline max-w-44 truncate text-[10px] text-neutral-500" title={midiDeviceName || midiStatus}>{midiDeviceName || midiStatus}</span>
+        </div>
+
         {/* Preset Groove Buttons */}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
