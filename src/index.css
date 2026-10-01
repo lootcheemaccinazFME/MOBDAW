@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+:root {
+  --demonic-void: #08030f;
+  --demonic-panel: #130d22;
+  --demonic-purple: #7928ca;
+  --demonic-violet: #b24cff;
+  --fme-cyan: #22d3ee;
+  --fme-rose: #fb3f8c;
+  --fme-gold: #fbbf24;
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+html, body, #root { min-height: 100%; background: var(--demonic-void); }
+body {
+  margin: 0;
+  color: #f5efff;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(121,40,202,.22), transparent 30rem),
+    radial-gradient(circle at 100% 20%, rgba(34,211,238,.12), transparent 28rem),
+    linear-gradient(180deg, #10071c 0%, var(--demonic-void) 58%);
+}
+
+button, input, select { touch-action: manipulation; }
+button { min-height: 34px; }
+header {
+  background: linear-gradient(100deg, rgba(14,7,27,.98), rgba(42,12,70,.94)) !important;
+  border-color: rgba(178,76,255,.38) !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.35);
+}
+header [class*="bg-neutral-900"] { background-color: rgba(19,13,34,.90) !important; }
+header [class*="text-cyan"] { color: var(--fme-cyan) !important; }
+
+[class*="bg-neutral-950"] { background-color: rgba(8,3,15,.92) !important; }
+[class*="bg-neutral-900"] { background-color: rgba(19,13,34,.86); }
+[class*="border-neutral-800"] { border-color: rgba(178,76,255,.22) !important; }
+[class*="border-neutral-700"] { border-color: rgba(178,76,255,.38) !important; }
+[class*="bg-rose-600"], [class*="from-rose-600"] { background-color: var(--fme-rose) !important; }
+[class*="text-rose-400"], [class*="text-rose-300"] { color: #ff78b3 !important; }
+
+input[type="range"] { accent-color: var(--fme-cyan); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(var(--demonic-violet), var(--fme-cyan)); border-radius: 999px; }
+
+@media (max-width: 760px) {
+  header { position: sticky; top: 0; z-index: 30; }
+  button { min-height: 40px; }
+  [class*="min-w-[700px]"] { min-width: 620px; }
+}
