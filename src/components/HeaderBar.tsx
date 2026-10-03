@@ -159,6 +159,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         arranger: 'arranger',
         'piano-roll': 'piano',
         'drum-sequencer': 'drums',
+        beatpad: 'beatpad',
         mixer: 'mixer',
         synth: 'synth',
         effects: 'fx',
