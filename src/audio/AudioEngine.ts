@@ -5,6 +5,7 @@ import {
   SynthConfig,
   AnyEffectConfig,
   AudioClip,
+  PocketPad,
 } from '../types/daw';
 
 export interface MeterData {
@@ -41,6 +42,9 @@ export class AudioEngine {
   private nextBeatTime: number = 0;
   private scheduledBeat: number = 0;
   private activeVoices: Set<{ stop: (time: number) => void }> = new Set();
+  private sampleBuffers = new Map<string, AudioBuffer>();
+  private chokeVoices = new Map<number, { stop: (time?: number) => void }>();
+  private pocketMidiListeners = new Set<(note:number,velocity:number)=>void>();
 
   // Project reference
   private project: Project | null = null;
@@ -297,6 +301,13 @@ export class AudioEngine {
       pitchOffset
     );
   }
+
+  public async loadPocketSample(id:string, source:Blob|string):Promise<AudioBuffer|null>{await this.ensureAudioReady();if(!this.ctx)return null;try{const ab=typeof source==='string'?await fetch(source).then(r=>r.arrayBuffer()):await source.arrayBuffer();const decoded=await this.ctx.decodeAudioData(ab.slice(0));this.sampleBuffers.set(id,decoded);return decoded}catch(e){console.warn('PocketBand sample decode failed',e);return null}}
+  public onPocketMidi(cb:(note:number,velocity:number)=>void){this.pocketMidiListeners.add(cb);return()=>this.pocketMidiListeners.delete(cb)}
+  public async playPocketPad(pad:PocketPad,velocity01:number,time?:number,destination?:AudioNode){await this.ensureAudioReady();if(!this.ctx||!this.masterGain)return;const now=time??this.ctx.currentTime;if(pad.sampleUrl&&!this.sampleBuffers.has(pad.sampleId))await this.loadPocketSample(pad.sampleId,pad.sampleUrl);const buffer=this.sampleBuffers.get(pad.sampleId);if(!buffer){this.playDrumSample(pad.sampleId,velocity01*pad.gain,now,destination||this.masterGain,pad.pitch);return}
+    if(pad.chokeGroup>0){const old=this.chokeVoices.get(pad.chokeGroup);old?.stop(now)}
+    const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),drive=this.ctx.createWaveShaper(),gain=this.ctx.createGain(),pan=this.ctx.createStereoPanner();source.buffer=buffer;source.playbackRate.value=Math.pow(2,pad.pitch/12);filter.type='lowpass';filter.frequency.value=Math.max(80,Math.min(20000,pad.fx.filterHz));filter.Q.value=pad.fx.resonance;const amount=Math.max(0,pad.fx.drive);if(amount>0){const curve=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/255-1;curve[i]=Math.tanh(x*(1+amount/12))}drive.curve=curve}else drive.curve=new Float32Array([-1,1]);gain.gain.value=Math.max(0,velocity01*pad.gain);pan.pan.value=Math.max(-1,Math.min(1,pad.pan));source.connect(filter);filter.connect(drive);drive.connect(gain);gain.connect(pan);pan.connect(destination||this.masterGain);const start=Math.max(0,Math.min(.999,pad.chopStart))*buffer.duration,end=Math.max(start+.001,Math.min(1,pad.chopEnd))*buffer.duration;source.start(now,start,Math.max(.001,end-start));const voice={stop:(t=0)=>{try{source.stop(t)}catch{}}};if(pad.chokeGroup>0)this.chokeVoices.set(pad.chokeGroup,voice);source.onended=()=>{if(this.chokeVoices.get(pad.chokeGroup)===voice)this.chokeVoices.delete(pad.chokeGroup)}}
+  public schedulePocketRoll(pad:PocketPad,velocity01:number,division:string,durationBeats=1){if(!this.ctx)return;const denom=Number(division.split('/')[1]||16),beatStep=4/denom,seconds=(60/this.bpm)*beatStep,count=Math.max(1,Math.floor(durationBeats/beatStep));for(let i=0;i<count;i++)void this.playPocketPad(pad,velocity01,this.ctx.currentTime+i*seconds)}
 
   // --- TRANSPORT CONTROLS ---
 
@@ -1157,6 +1168,8 @@ export class AudioEngine {
     const armedTrack =
       this.project.tracks.find((t) => t.armed && t.type === 'instrument') ||
       this.project.tracks.find((t) => t.type === 'instrument');
+
+    if (command === 9 && velocity > 0 && this.project.pocketBand) { this.pocketMidiListeners.forEach(cb=>cb(note,velocity)); return; }
 
     if (!armedTrack || !armedTrack.synthConfig || !this.ctx) return;
     const dest = this.trackGains.get(armedTrack.id) || this.masterGain;
