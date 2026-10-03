@@ -69,7 +69,7 @@ export interface AudioClip {
   color?: string;
 }
 
-export type WorkspaceView = 'arranger' | 'piano-roll' | 'drum-sequencer' | 'mixer' | 'synth' | 'effects';
+export type WorkspaceView = 'arranger' | 'piano-roll' | 'drum-sequencer' | 'beatpad' | 'mixer' | 'synth' | 'effects';
 
 export interface TrackClip {
   id: string;
