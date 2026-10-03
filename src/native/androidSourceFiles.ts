@@ -15,7 +15,7 @@ export const ANDROID_PROJECT_FILES: AndroidSourceFile[] = [
 #include <oboe/Oboe.h>
 #include <vector>
 #include <memory>
-#include <atomic>
+#include <atomic>\n#include <array>\n#include <cstdint>
 #include "DspEffects.h"
 
 namespace aura {
@@ -63,6 +63,17 @@ private:
     std::atomic<float> mMasterVolume{0.85f};
     std::atomic<float> mBpm{130.0f};
     std::atomic<float> mCpuLoad{0.0f};
+    struct Voice { bool active{false}; int pitch{60}; float velocity{0.0f}; float phase{0.0f}; float release{1.0f}; };
+    enum class CommandType : uint8_t { NoteOn, NoteOff, Parameter };
+    struct Command { CommandType type; int track; int key; float value; };
+    static constexpr uint32_t kQueueSize=256;
+    std::array<Command,kQueueSize> mCommands{};
+    std::atomic<uint32_t> mWrite{0},mRead{0};
+    std::array<Voice,32> mVoices{};
+    std::array<std::array<std::atomic<float>,16>,16> mParams{};
+    bool enqueue(const Command& c);
+    void drainCommands();
+    void renderVoices(float* output,int32_t numFrames);
 
     // Pre-allocated DSP buffers
     std::vector<float> mMixBuffer;
@@ -174,18 +185,11 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
     }
 
     float masterVol = mMasterVolume.load(std::memory_order_relaxed);
-
-    // 1. Process Tracks & Instruments into local mix buffer
-    // Vectorized SIMD mixing loop:
+    drainCommands();
+    renderVoices(output,numFrames);
     for (int frame = 0; frame < numFrames; ++frame) {
-        float left = 0.0f;
-        float right = 0.0f;
-
-        // Render synthetic voices (sine/saw analog synth + 808 drums)
-        // ... (voice rendering pipeline) ...
-
-        output[frame * 2] = left * masterVol;
-        output[frame * 2 + 1] = right * masterVol;
+        output[frame * 2] *= masterVol;
+        output[frame * 2 + 1] *= masterVol;
     }
 
     // 2. Master Bus DSP
@@ -223,17 +227,21 @@ void AudioEngine::setMasterVolume(float vol) {
     mMasterVolume.store(vol, std::memory_order_relaxed);
 }
 
-void AudioEngine::triggerNoteOn(int trackId, int pitch, float velocity) {
-    // SPSC Lock-free queue trigger to audio thread
+bool AudioEngine::enqueue(const Command& c) {
+    const auto w=mWrite.load(std::memory_order_relaxed), next=(w+1)%kQueueSize;
+    if(next==mRead.load(std::memory_order_acquire)) return false;
+    mCommands[w]=c; mWrite.store(next,std::memory_order_release); return true;
 }
-
-void AudioEngine::triggerNoteOff(int trackId, int pitch) {
-    // SPSC Lock-free queue trigger
+void AudioEngine::drainCommands(){
+    auto r=mRead.load(std::memory_order_relaxed); const auto w=mWrite.load(std::memory_order_acquire);
+    while(r!=w){const auto c=mCommands[r]; if(c.type==CommandType::NoteOn){Voice* v=nullptr;for(auto& q:mVoices)if(!q.active){v=&q;break;}if(!v)v=&mVoices[0];v->active=true;v->pitch=std::clamp(c.key,0,127);v->velocity=std::clamp(c.value,0.0f,1.0f);v->phase=0;v->release=1;}else if(c.type==CommandType::NoteOff){for(auto& v:mVoices)if(v.active&&v.pitch==c.key)v.release=0.9992f;}else if(c.track>=0&&c.track<16&&c.key>=0&&c.key<16)mParams[c.track][c.key].store(c.value,std::memory_order_relaxed);r=(r+1)%kQueueSize;} mRead.store(r,std::memory_order_release);
 }
-
-void AudioEngine::setParameter(int trackId, int paramId, float value) {
-    // Atomic or lock-free parameter dispatch
+void AudioEngine::renderVoices(float* output,int32_t frames){
+    constexpr float twoPi=6.28318530718f; for(auto& v:mVoices){if(!v.active)continue;const float hz=440.0f*std::pow(2.0f,(v.pitch-69)/12.0f),inc=twoPi*hz/mSampleRate;for(int i=0;i<frames;i++){const float s=(std::sin(v.phase)*0.72f+std::sin(v.phase*2.0f)*0.18f)*v.velocity*v.release;output[i*2]+=s;output[i*2+1]+=s;v.phase+=inc;if(v.phase>twoPi)v.phase-=twoPi;if(v.release<1.0f)v.release*=0.9992f;}if(v.release<0.0005f)v.active=false;}
 }
+void AudioEngine::triggerNoteOn(int trackId,int pitch,float velocity){enqueue({CommandType::NoteOn,trackId,pitch,velocity});}
+void AudioEngine::triggerNoteOff(int trackId,int pitch){enqueue({CommandType::NoteOff,trackId,pitch,0});}
+void AudioEngine::setParameter(int trackId,int paramId,float value){enqueue({CommandType::Parameter,trackId,paramId,value});}
 
 } // namespace aura
 `,
@@ -258,10 +266,7 @@ public:
     }
 
     void process(float* buffer, int numFrames) {
-        // Direct Form II Transposed Biquad filter processing
-        for (int i = 0; i < numFrames * 2; ++i) {
-            // Apply biquad coefficients
-        }
+        for(int frame=0;frame<numFrames;++frame){float x=buffer[frame*2],y=mB0*x+mZ1_L;mZ1_L=mB1*x-mA1*y+mZ2_L;mZ2_L=mB2*x-mA2*y;buffer[frame*2]=y;x=buffer[frame*2+1];y=mB0*x+mZ1_R;mZ1_R=mB1*x-mA1*y+mZ2_R;mZ2_R=mB2*x-mA2*y;buffer[frame*2+1]=y;}
     }
 private:
     int mSampleRate{48000};
@@ -311,9 +316,7 @@ public:
         mWriteIndex = 0;
     }
 
-    void process(float* buffer, int numFrames) {
-        // Stereo feedback delay loop
-    }
+    void process(float* buffer,int numFrames){if(mBufferL.empty())return;const int delay=std::min(mMaxDelay-1,mSampleRate/3);const float feedback=.38f,wet=.22f;for(int i=0;i<numFrames;++i){int read=(mWriteIndex-delay+mMaxDelay)%mMaxDelay;float inL=buffer[i*2],inR=buffer[i*2+1],dL=mBufferL[read],dR=mBufferR[read];mBufferL[mWriteIndex]=inL+dR*feedback;mBufferR[mWriteIndex]=inR+dL*feedback;buffer[i*2]=inL+dL*wet;buffer[i*2+1]=inR+dR*wet;mWriteIndex=(mWriteIndex+1)%mMaxDelay;}}
 private:
     int mSampleRate{48000};
     int mMaxDelay{96000};

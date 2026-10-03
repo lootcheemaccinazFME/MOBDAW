@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "check:native-sources": "node scripts/check-native-sources.mjs",
+    "verify": "npm run lint && npm run build && npm run check:native-sources"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
