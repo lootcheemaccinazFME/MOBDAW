@@ -424,6 +424,9 @@ export class AudioEngine {
       this.playMetronomeClick(time, isBarStart);
     }
 
+    const pb=this.project.pocketBand;
+    if(pb&&pb.patterns.length){const chain=pb.chain.length?pb.chain:[pb.activePatternId];const stepsPerBeat=4,totalStep=Math.floor(beat*stepsPerBeat),patternIndex=Math.floor(totalStep/Math.max(1,(pb.patterns.find(p=>p.id===chain[0])?.stepCount||16)))%chain.length;const pattern=pb.patterns.find(p=>p.id===chain[patternIndex])||pb.patterns[0],stepIndex=((totalStep%pattern.stepCount)+pattern.stepCount)%pattern.stepCount;const anySolo=pattern.tracks.some(t=>t.solo);pattern.tracks.forEach(t=>{if(t.mute||(anySolo&&!t.solo))return;const s=t.steps[stepIndex],pad=pb.pads[t.padIndex];if(s?.active&&pad&&Math.random()*100<=s.probability){const swing=(stepIndex%2?pattern.swing/100*.04:0);void this.playPocketPad(pad,s.velocity/127,time+swing,this.trackGains.get('track_drums')||this.masterGain||undefined)}})}
+
     // Schedule MIDI and Drum clips on each track
     this.project.tracks.forEach((track) => {
       if (track.mute) return;
