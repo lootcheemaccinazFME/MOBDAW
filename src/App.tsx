@@ -7,6 +7,7 @@ import { HeaderBar } from './components/HeaderBar';
 import { ArrangerView } from './components/ArrangerView';
 import { PianoRollView } from './components/PianoRollView';
 import { DrumSequencerView } from './components/DrumSequencerView';
+import { BeatPadView } from './components/BeatPadView';
 import { MixerScreen } from './components/MixerScreen';
 import { SynthesizerView } from './components/SynthesizerView';
 import { EffectsRackView } from './components/EffectsRackView';
@@ -175,6 +176,8 @@ export default function App() {
       } else if (e.code === 'Digit3') {
         setCurrentWorkspace('drum-sequencer');
       } else if (e.code === 'Digit4') {
+        setCurrentWorkspace('beatpad');
+      } else if (e.code === 'Digit7') {
         setCurrentWorkspace('mixer');
       } else if (e.code === 'Digit5') {
         setCurrentWorkspace('synth');
@@ -261,6 +264,8 @@ export default function App() {
             currentBeat={currentBeat}
           />
         )}
+
+        {currentWorkspace === 'beatpad' && <BeatPadView project={project} onUpdateProject={updateProject} currentBeat={currentBeat} />}
 
         {currentWorkspace === 'mixer' && (
           <MixerScreen
