@@ -268,11 +268,22 @@ export interface ProjectSettings {
   updatedAt: number;
 }
 
+
+export type PadVelocityCurve='linear'|'soft'|'hard'|'fixed';
+export type RollDivision='1/4'|'1/8'|'1/16'|'1/32'|'1/64';
+export interface PocketPadFx{filterHz:number;resonance:number;drive:number;delaySend:number;reverbSend:number}
+export interface PocketPad{index:number;note:number;name:string;color:string;sampleId:string;sampleUrl?:string;chopStart:number;chopEnd:number;chokeGroup:number;pitch:number;gain:number;pan:number;velocityCurve:PadVelocityCurve;fixedVelocity:number;fx:PocketPadFx}
+export interface PocketPattern{id:string;name:string;stepCount:16|32|64;swing:number;quantize:number;tracks:{id:string;name:string;padIndex:number;mute:boolean;solo:boolean;steps:DrumStep[]}[]}
+export interface PocketScene{id:string;name:string;patternIds:string[];bars:number}
+export interface PocketControllerMap{deviceId:string;name:string;noteToPad:Record<number,number>;ccToAction:Record<number,string>;velocityCurve:PadVelocityCurve}
+export interface PocketBandState{version:1;bank:number;pads:PocketPad[];patterns:PocketPattern[];activePatternId:string;chain:string[];scenes:PocketScene[];activeSceneId?:string;roll:RollDivision;noteRepeat:boolean;controllerMaps:PocketControllerMap[]}
+
 export interface Project {
   settings: ProjectSettings;
   tracks: Track[];
   drumPatterns: DrumPattern[];
   masterEffects: AnyEffectConfig[];
+  pocketBand?: PocketBandState;
 }
 
 export interface SoundPack {
